@@ -19,7 +19,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Syntax hiding (lift)
 import Language.Haskell.TH.ExpandSyns (expandSyns)
 
-import Database.Beam (Table, TableField, Columnar, PrimaryKey, primaryKey, tableConfigLenses, LensFor(..))
+import Database.Beam (Table, TableField, Columnar, PrimaryKey, primaryKey)
 import Database.Beam.TH.Internal
 import Lens.Micro (Lens')
 
@@ -36,13 +36,13 @@ primaryKeyTy = do
   f <- lift . lift $ newName "f"
   cty <- lift . lift $ getColTy ty
   let primaryKeyTyRHS = pure (str, ConT ''Columnar <~> VarT f <~> ConT cty)
-  tellD $ DataInstD [] ''PrimaryKey [ConT nmT, VarT f] Nothing [NormalC nmI primaryKeyTyRHS] [ConT ''Generic]
+  tellD $ DataInstD [] ''PrimaryKey [ConT nmT, VarT f] Nothing [NormalC nmI primaryKeyTyRHS] [DerivClause (Just StockStrategy) [ConT ''Generic]]
 primaryKeyFun = do
   (pk, _, _) <- vst
   nmI <- nameId
   x <- lift . lift $ newName "x"
   tellD . FunD 'primaryKey . pure $ Clause [VarP x] (NormalB (ConE nmI <+> (VarE pk <+> VarE x))) []
-nameInst, nameTySyn, nameIdTySyn, nameLens :: MakeTableT''
+nameInst, nameTySyn, nameIdTySyn :: MakeTableT''
 nameInst = do
   nmT <- nameT
   decs <- execWriterT $ primaryKeyTy >> primaryKeyFun
@@ -51,7 +51,12 @@ nameTySyn = do
   nm <- name
   nmT <- nameT
   tellD . TySynD nm []        $ ConT nmT <~> ConT ''Identity
-  tellD . StandaloneDerivD [] $ ConT ''Show <~> ConT nm
+  tellD $ StandaloneDerivD (Just AnyclassStrategy) [] $ ConT ''Show <~> ConT nm
+  where
+    standaloneDerivings nm =
+      [d|
+       deriving instance Show $nm
+       |]
 nameIdTySyn = do
   nmT <- nameT
   nmId <- nameId
@@ -59,33 +64,7 @@ nameIdTySyn = do
   f <- lift $ newName "f"
   tellD . TySynD nmId  [KindedTV f (StarT ~> StarT)] $ ConT ''PrimaryKey <~> ConT nmT <~> VarT f
   tellD . TySynD nmId' []                            $ ConT nmId <~> ConT ''Identity
-  tellD . StandaloneDerivD []                        $ ConT ''Show <~> ConT nmId'
-nameLens = do
-  nm <- name
-  nmT <- nameT
-  (Just lf) <- lift . lookupValueName $ "LensFor"
-  (TyConI (DataD _ _ _ _ (RecC _ vsts:_) _)) <- lift $ reify nmT
-  let fields = fmap renameFields vsts
-      signature x = tellD . SigD x $ ConT lens' <~> (ConT nmT <~> (ConT ''TableField <~> ConT nmT))
-                                                <~> (ConT ''TableField <~> ConT nmT <~> WildCardT)
-  fields' <- forM fields (\(x, t) -> lift (opportunisticExpand t) >>= \case
-                             AppT (AppT (ConT test) (ConT _)) _ | test == ''PrimaryKey -> do
-                                                                    signature x
-                                                                    c <- lift . extractCon $ t
-                                                                    pure . ConP c . pure . ConP lf . pure . VarP $ x
-                             _ -> do
-                               signature x
-                               pure . ConP lf . pure . VarP $ x)
-  tellD $ ValD (ConP nm fields') (NormalB (VarE 'tableConfigLenses)) []
-    where
-      renameFields (cname, _, t) = (rename (++ "C") cname, t)
-      lens' = ''Lens'
-      extractCon (AppT (ConT c) _) = fmap fromJust . lookupValueName . nameBase $ c
-      extractCon (AppT (AppT _ (ConT c)) _) = fmap fromJust . lookupValueName . (++ "Id") . nameBase =<< baseName c
-      extractCon x = error $ "Unknown cross-table reference '" ++ pprint x ++ "'; use PrimaryKey OtherTableT f or the synonymous OtherTableId f"
-      -- To circumvent th-expand-syns: WARNING: Type synonym families (and associated type synonyms) are currently not supported (they won't be expanded). Name of unsupported family: Database.Beam.Schema.Tables.Columnar
-      opportunisticExpand t@(AppT (AppT (ConT x) _ ) _) | x == ''Columnar = pure t
-      opportunisticExpand x = expandSyns x
+  tellD . StandaloneDerivD (Just StockStrategy) []                        $ ConT ''Show <~> ConT nmId'
 
 baseName :: Name -> Q Name
 baseName nmT = do
@@ -100,7 +79,7 @@ baseName nmT = do
 makeTableWithType :: Name -> VarStrictType -> DecsQ
 makeTableWithType nmT v = do
   nm <- baseName nmT
-  fmap concat . mapM (runTableT nm v) $ [nameTySyn, nameInst, nameIdTySyn, nameLens]
+  fmap concat . mapM (runTableT nm v) $ [nameTySyn, nameInst, nameIdTySyn]
 
 recordFields :: Info -> [VarBangType]
 recordFields (TyConI (DataD _ _ _ _ (RecC _ x:_) _)) = x

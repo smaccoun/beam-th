@@ -1,0 +1,86 @@
+name: beam-th
+version: '0.2.0.0'
+synopsis: Template Haskell utilities for beam
+description: ! '(Completely optional) Template Haskell functions
+
+  to derive common boilerplate code when writing table types
+
+  for the <https://hackage.haskell.org/package/beam beam> library.'
+category: Database, Template Haskell
+author: Tobias Markus <tobias AT miglix DOT eu>
+maintainer: Tobias Markus <tobias AT miglix DOT eu>
+copyright: Copyright 2016 Tobias Markus <tobias AT miglix DOT eu>
+license: BSD3
+github: hesiod/beam-th.git
+extra-source-files:
+- README.md
+- CHANGELOG.md
+default-extensions:
+  - LambdaCase
+  - ConstraintKinds
+  - DataKinds
+  - DeriveGeneric
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - KindSignatures
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - PolyKinds
+  - QuasiQuotes
+  - RankNTypes
+  - RecordWildCards
+  - ScopedTypeVariables
+  - NamedFieldPuns
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TypeApplications
+  - TypeFamilies
+  - TypeOperators
+  - UndecidableInstances
+  - DeriveAnyClass
+  - DerivingStrategies
+  - TypeSynonymInstances
+ghc-options:
+- -Wall
+- -Wcompat
+library:
+  source-dirs: src
+  other-extensions:
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  exposed-modules:
+  - Database.Beam.TH
+  - Database.Beam.TH.Internal
+  dependencies:
+  - base
+  - template-haskell
+  - th-expand-syns
+  - transformers
+  - mtl
+  - beam-core
+  - microlens
+tests:
+  test-beam-th:
+    main: Test.hs
+    source-dirs: test
+    dependencies:
+    - base
+    - beam-th
+    - beam
+    - text
+    - template-haskell
+    - tasty
+    - tasty-hunit
+  doctest-beam-th:
+    main: DoctestDriver.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    dependencies:
+    - base
+    - doctest
+    - doctest-discover
+stability: Experimental
+tested-with: ghc ==8.0.1
